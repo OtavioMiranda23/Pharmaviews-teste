@@ -1,0 +1,30 @@
+# Ambiente virtual
+venv/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# Configuração do ambiente
+.env
+*.env
+
+# Logs e arquivos temporários
+*.log
+logs/
+tmp/
+*.sqlite3
+instance/
+
+# Dependências instaladas
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Configuração do IDE
+.vscode/
+.idea/
+*.iml
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
