@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Verbas</title>
+    <style>
+        .header {
+            background-color: #47618c; /* Cor de fundo do header */
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border-bottom: 2px solid #d1d1d1; /* Linha inferior sutil */
+        }
+
+        input, select {
+            padding: 1rem;
+        }
+        .wrapper {
+            display: flex;
+            flex-direction: column;
+        }
+        .group {
+            display: flex;
+            gap: 2rem;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            width: 80%;
+            margin: 20px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #47618c;
+            color: white;
+        }
+        .wrapper-btn {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+
+        }
+        .btn {
+            padding: 1rem 4rem ;
+            border: none;
+            cursor: pointer;
+            font-size: 1.rem;
+        }
+        .btn-edit { background-color: #ffc107; }
+        .btn-delete { background-color: #dc3545; color: white; }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+            overflow: auto;
+        }
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 5px;
+            width: 80%;
+            max-width: 500px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .footer {
+            background-color: #47618c; /* Cor igual ao header */
+            color: white;
+            text-align: center;
+            padding: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            border-top: 2px solid #d1d1d1; /* Linha superior sutil */
+            position: fixed;
+            width: 100%;
+            bottom: 0;
+        }
+
+    </style>
+</head>
+<header class="header">
+    <h2>Pharmaviews</h2>
+</header>
+
+<body>
+    <div class="container">
+        <h2>Gestão de Verbas</h2>
+        <div class="group">
+            <div class="wrapper">
+                <label>Ação:</label>
+                <select id="acao">
+                    <option value="">Selecione o tipo da ação...</option>
+                </select>
+            </div>
+            <div class="wrapper">
+                <label>Data prevista:</label>
+                <input type="date" id="data">
+            </div>
+            <div class="wrapper">
+                <label>Investimento previsto:</label>
+                <input type="number" id="investimento" min="0" step="0.01">
+            </div>
+            <div class="wrapper-btn">
+                <button class="btn" style="background-color: green; color: white;" onclick="send()">Adicionar</button>
+                <button class="btn" style="background-color: orange;" onclick="limpar()">Limpar</button>
+            </div>
+
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Ação</th>
+                    <th>Data prevista</th>
+                    <th>Investimento previsto</th>
+                    <th>Editar</th>
+                    <th>Excluir</th>
+                </tr>
+            </thead>
+            <tbody id="tabela-corpo"></tbody>
+        </table>
+    </div>
+
+    <!-- Modal de Edição -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Editar Ação</h3>
+            <label>Ação:</label>
+            <select id="edit-acao">
+                <option value="">Selecione o tipo da ação...</option>
+            </select>
+            <label>Data prevista:</label>
+            <input type="date" id="edit-data">
+            <label>Investimento previsto:</label>
+            <input type="number" id="edit-investimento" min="0" step="0.01">
+            <button class="btn" style="background-color: green; color: white;" onclick="updateAction(selectedActionId, document.getElementById('edit-acao').value, document.getElementById('edit-data').value, document.getElementById('edit-investimento').value)">Salvar Alterações</button>
+        </div>
+    </div>
+    <footer class="footer">
+        <p>© 2024 Gestão de Verbas. Todos os direitos reservados.</p>
+    </footer>
+    
+
+    <script>
+        const form = {
+            "action_type": null,
+            "date": null,
+            "investment": null
+        };
+        let selectedActionId = null; // Variável para armazenar o ID da ação selecionada
+        const baseUrl = "http://localhost:5000";
+
+        async function loadOptions() {
+            try {
+                const response = await fetch(`${baseUrl}/types`, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    credentials: "include"
+                });
+                if (!response.ok) throw new Error("Erro ao buscar opções");
+                const dados = await response.json();
+                const selectAcao = document.getElementById("acao");
+                selectAcao.innerHTML = '<option value="">Selecione o tipo da ação...</option>'; // Resetar
+                dados.data.forEach(tipo => {
+                    const option = document.createElement("option");
+                    option.value = tipo[0]; 
+                    option.textContent = tipo[1];
+                    selectAcao.appendChild(option);
+                });
+                const selectEditAcao = document.getElementById("edit-acao");
+                selectEditAcao.innerHTML = '<option value="">Selecione o tipo da ação...</option>'; // Resetar
+                dados.data.forEach(tipo => {
+                    const option = document.createElement("option");
+                    option.value = tipo[0];
+                    option.textContent = tipo[1];
+                    selectEditAcao.appendChild(option);
+                });
+            } catch (error) {
+                console.error("Erro ao carregar opções:", error);
+            }
+        }
+
+        async function getAllActions() {
+            try {
+                const response = await fetch(`${baseUrl}/actions`, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    credentials: "include"
+                });
+                if (!response.ok) {
+                    throw new Error('Erro ao buscar dados');
+                }
+                const data = await response.json();
+                const tableBody = document.getElementById('tabela-corpo');
+                tableBody.innerHTML = '';
+                data.data.forEach(item => {
+                    const row = document.createElement('tr');
+
+                    const cellName = document.createElement('td');
+                    cellName.textContent = item.action_name;
+                    row.appendChild(cellName);
+
+                    const cellDate = document.createElement('td');
+                    cellDate.textContent = item.date;
+                    row.appendChild(cellDate);
+
+                    const cellInvestment = document.createElement('td');
+                    cellInvestment.textContent = `R$ ${item.investment}`;
+                    row.appendChild(cellInvestment);
+
+                    const cellEdit = document.createElement('td');
+                    cellEdit.innerHTML = '&#x1F4DD;';
+                    cellEdit.style.cursor = 'pointer';
+                    cellEdit.onclick = function() {
+                        openModal(item); 
+                    };
+                    row.appendChild(cellEdit);
+
+                    const celldelete = document.createElement('td');
+                    celldelete.innerHTML = '&#x274C;';
+                    celldelete.style.cursor = 'pointer';
+                    celldelete.onclick = async function() {
+                        try {
+                            const response = await fetch(`${baseUrl}/action`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({"id": item.id})
+                            });
+                            getAllActions();
+                        } catch (error) {
+                            console.error('Erro na requisição de exclusão:', error);
+                            alert('Ocorreu um erro ao tentar excluir a ação.');
+                        }
+                    };
+                    row.appendChild(celldelete);
+                    tableBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Erro ao carregar dados da API:', error);
+            }
+        }
+
+        function openModal(item) {        
+            document.getElementById('edit-acao').value = item.action_type;
+            document.getElementById('edit-acao').dataset.type_id = item.id_action_type; 
+            document.getElementById('edit-data').value = item.date;
+            document.getElementById('edit-investimento').value = item.investment;
+            selectedActionId = item.id; // Salvar o ID da ação que está sendo editada
+            document.getElementById('editModal').style.display = 'block'; // Exibir o modal
+        }
+
+        function closeModal() {
+            document.getElementById('editModal').style.display = 'none'; // Fechar o modal
+        }
+
+        async function updateAction(id, id_action_type, date, investment) {            
+            const updatedData = {
+                action_id: id,
+                id_action_type,
+                date,
+                investment
+            };
+
+            try {
+                const response = await fetch(`${baseUrl}/action`, {
+                    method: 'PUT',
+                    body: JSON.stringify(updatedData),
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    credentials: "include"
+                });
+
+                if (!response.ok) {
+                    throw new Error('Erro ao atualizar a ação');
+                }
+                closeModal();
+                getAllActions();
+
+            } catch (error) {
+                console.error('Erro ao atualizar ação:', error);
+                alert('Ocorreu um erro ao tentar atualizar a ação.');
+            }
+        }
+
+        async function send() {
+            try {
+                const form = {
+                    action_type: document.getElementById("acao").value,
+                    date: document.getElementById("data").value,
+                    investment: document.getElementById("investimento").value
+                };
+
+                const response = await fetch(`${baseUrl}/action`, {
+                    method: "POST",
+                    body: JSON.stringify(form),
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    credentials: "include"
+                });
+
+                getAllActions();
+
+            } catch (error) {
+                console.error(error);
+                alert("Não foi possível enviar as informações");
+            }
+        }
+        function limpar() {
+            document.getElementById("acao").value = "";
+            document.getElementById("data").value = "";
+            document.getElementById("investimento").value = "";
+        }
+        window.onload = () => {
+            loadOptions();
+            getAllActions();
+        };
+    </script>
+</body>
+</html>
